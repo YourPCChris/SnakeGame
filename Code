@@ -1,0 +1,244 @@
+/*
+Snake Game inspired by Google snake game
+player controls snake within a grid to food which makes the snake longer. The aim being to get the longest snake possible
+CONTROLS: ('w' UP)('a' LEFT)('s' DOWN)('d' DOWN)('q' QUIT)
+*/
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <conio.h>
+#include <time.h>
+#include <windows.h>
+
+#define GRIDX 40
+#define GRIDY 20
+#define INITIAL_SNAKE_LENGTH 3
+#define MAX_SNAKE_LENGTH 100
+#define DEADTIME 1
+
+
+struct Position {
+    int x;
+    int y;
+};
+
+struct Snake {
+    struct Position body[MAX_SNAKE_LENGTH];
+    int length;
+    char direction;
+    int score;
+};
+
+struct Food {
+    struct Position position;
+    char symbol;
+};
+
+
+void initialize(struct Snake *snake, struct Food *food, int *refreshRate);//gets things started by initializing object members
+void drawGrid(struct Snake *snake, struct Food *food);//Draws the grid and the snake in the grid
+void update(struct Snake *snake, struct Food *food, clock_t *lastMoveTime, int *refreshRate);//Updates positions of all objects (snake and food) checks if snake has died and updates counters
+void generateFoodPosition(struct Food *food);// Uses the rand and srand functions to generate a random x and y co-ordinate to give to the food
+int isSnakeInsideGrid(struct Snake *snake);// checks if the snake is inside the grid and outputs '-1 for not in grid and '0' if in the grid
+void Score_Board(struct Snake *snake);//Outputs the current high score and tells the user if they have beaten the high score. If they have it then writes to the file the users high score
+
+
+
+
+int main() {
+    int refreshRate = 100;
+    struct Snake snake;
+    struct Food food;
+    char key;
+    int gameOver = 0;
+    clock_t lastMoveTime;
+
+    initialize(&snake, &food, &refreshRate);
+    drawGrid(&snake, &food);
+
+    printf("Press any key to start...");
+    _getch();
+
+    lastMoveTime = clock();
+
+
+    while (!gameOver)
+        {
+        if (_kbhit()) {
+            key = _getch();
+
+            switch (key)
+            {
+                case 'w':
+                    if (snake.direction != 'd') {
+                        snake.direction = 'u';
+                    }
+                    break;
+                case 's':
+                    if (snake.direction != 'u') {
+                        snake.direction = 'd';
+                    }
+                    break;
+                case 'a':
+                    if (snake.direction != 'r') {
+                        snake.direction = 'l';
+                    }
+                    break;
+                case 'd':
+                    if (snake.direction != 'l') {
+                        snake.direction = 'r';
+                    }
+                    break;
+                case 'q':
+                    char goAgain;
+                    printf("\n\nWould you like to play again?(Enter '0' for yes and '1' for no)\n");
+                    scanf("%c", &goAgain);
+                    if (goAgain == '0'){initialize(&snake, &food, &refreshRate);}
+                    else if (goAgain != '0'){gameOver=1;}
+                    break;
+            }
+        }
+        update(&snake, &food, &lastMoveTime, &refreshRate);
+        drawGrid(&snake, &food);
+        Sleep(refreshRate);
+    }
+
+    printf("Game over!\n");
+    //printf("You Scored:\t%i\n", snake.score);
+    Score_Board(&snake);
+
+    return 0;
+}
+
+void initialize(struct Snake *snake, struct Food *food, int *refreshRate) {
+    snake->length = INITIAL_SNAKE_LENGTH;
+    snake->direction = ' ';
+    snake->score = 0;
+    *refreshRate = 150;
+
+    for (int i = 0; i < INITIAL_SNAKE_LENGTH; i++) {
+        snake->body[i].x = GRIDX / 2 - INITIAL_SNAKE_LENGTH / 2 + i;
+        snake->body[i].y = GRIDY / 2;
+    }
+
+    food->symbol = '*';
+    generateFoodPosition(food);
+}
+
+void drawGrid(struct Snake *snake, struct Food *food) {
+    system("cls");
+
+    for (int i = 0; i <= GRIDY; i++)
+    {
+        for (int j = 0; j <= GRIDX; j++)
+        {
+            if (i == 0 || i == GRIDY) {
+                printf("-");
+            } else if (j == 0 || j == GRIDX) {
+                printf("|");
+            } else {
+                int isSnakeBody = 0;
+
+                for (int k = 0; k < snake->length; k++)
+                {
+                    if (snake->body[k].x == j && snake->body[k].y == i) {
+                        printf("O");
+                        isSnakeBody = 1;
+                        break;
+                    }
+                }
+                if (!isSnakeBody && food->position.x == j && food->position.y == i) {
+                    printf("%c", food->symbol);
+                } else if (!isSnakeBody) {
+                    printf(" ");
+                }
+            }
+        }
+        printf("\n");
+    }
+}
+
+void update(struct Snake *snake, struct Food *food, clock_t *lastMoveTime, int *refreshRate) {
+    //updates snake body positions
+    for (int i = snake->length - 1; i > 0; i--) {
+        snake->body[i] = snake->body[i - 1];
+    }
+    //updates snake head position
+    switch (snake->direction) {
+        case 'u':
+            snake->body[0].y--;
+            break;
+        case 'd':
+            snake->body[0].y++;
+            break;
+        case 'l':
+            snake->body[0].x--;
+            break;
+        case 'r':
+            snake->body[0].x++;
+            break;
+    }
+    //Checks if snake has been outside of the grid for too long
+    if (isSnakeInsideGrid(snake) == -1) {
+        clock_t currentTime = clock();
+        double elapsedSeconds = (double)(currentTime - *lastMoveTime) / CLOCKS_PER_SEC;
+        if (elapsedSeconds >= DEADTIME) {
+            printf("Snake is outside the grid for too long. Game over!\n\n\n");
+            int goAgain;
+            Score_Board(snake);
+
+            printf("\n\nWould you like to play again?(Enter '0' for yes and '1' for no)\n");
+            scanf("%i", &goAgain);
+            if (goAgain == 0){initialize(snake, food, refreshRate);}
+            else if (goAgain != 0){exit(0);}
+        }
+    } else {
+        *lastMoveTime = clock();
+    }
+    if (snake->body[0].x == food->position.x && snake->body[0].y == food->position.y) {
+        snake->length++;
+        snake->score ++;
+        if (*refreshRate > 0){*refreshRate = *refreshRate - 10;}
+        generateFoodPosition(food);
+    }
+}
+
+void generateFoodPosition(struct Food *food) {
+    srand(time(NULL));
+    food->position.x = rand() % (GRIDX - 1) + 1;
+    food->position.y = rand() % (GRIDY - 1) + 1;
+}
+
+int isSnakeInsideGrid(struct Snake *snake) {
+    int headX = snake->body[0].x;
+    int headY = snake->body[0].y;
+
+    if (headX >= 1 && headX <= GRIDX - 1 && headY >= 1 && headY <= GRIDY - 1){return 0;}
+    else{return -1;}
+}
+
+void Score_Board(struct Snake *snake)
+{
+    char score[100];
+
+    FILE *scoreBoard;
+    scoreBoard = fopen("ScoreBoard.txt", "r");
+
+    if (scoreBoard != NULL)
+    {
+        //printf("FILE FOUND\n");
+        printf("your score is:\t%i\n", snake->score);
+        fgets(score, 100, scoreBoard);
+        int highScore = atoi(score);printf("HIGHSCORE\t%i\n", highScore);
+        if (highScore < snake->score)
+        {
+            printf("You broke the high score!!\n");
+            fclose(scoreBoard);
+            FILE *highScoreBroken;
+            highScoreBroken = fopen("ScoreBoard.txt", "w");
+            fprintf(highScoreBroken, "%i", snake->score);
+            fclose(highScoreBroken);
+        }else if (scoreBoard == NULL){printf("FILE NOT FOUND\n");fclose(scoreBoard);}
+    }
+}
